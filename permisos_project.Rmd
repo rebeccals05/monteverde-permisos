@@ -1,0 +1,501 @@
+---
+title: "Permisos Proyecto"
+author: "Rebecca Stamm"
+date: "2025-06-18"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+
+---
+
+## Set-Up
+
+```{r}
+suppressMessages(library(tidyverse))
+library(ggplot2)
+library(readxl)
+
+# reading in files
+permisos <- read_excel("permisos.xls")
+permisos19 <- read_excel("PC Monteverde 2019.xls")
+permisos22 <- read_excel("PC Monteverde 2022.xls")
+# using the same names for each columns
+names(permisos) = names(permisos22)
+# merging the separate data frames together
+all_permisos <- rbind(permisos19, permisos, permisos22)
+
+# to type out accents in graphs or have the months in the dates in spanish
+# Sys.setlocale("LC_MESSAGES", "es_ES.UTF-8")
+```
+
+
+## EDA
+
+```{r eval=FALSE, include=FALSE}
+summary(all_permisos$fecha_pago)
+unique(all_permisos$tipo_obra)
+# table(all_permisos$propietarioa[duplicated(all_permisos$propietarioa)])
+table(all_permisos$propietarioa[(all_permisos$propietarioa != all_permisos$solicitante)])
+```
+
+### Permit Type EDA
+```{r}
+all_permisos$destino <- factor(all_permisos$destino)
+
+# bar graph
+all_permisos |>
+  ggplot(aes(x = fct_infreq(destino))) +
+  geom_bar(fill = "darkgreen") +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1)) +
+  geom_text(stat = "count", aes(label = after_stat(count)),
+            vjust = -0.5) +
+  labs(title = "Los Destinos de los Permisos / Permit Uses", 
+       x = "Destino / Use", y = "Conteo / Count") +
+  scale_y_continuous(limits = c(0, 310))
+
+# table version
+all_permisos %>% group_by(destino) %>% summarize(n())
+```
+
+### Building Material EDA
+```{r}
+# Walls
+all_permisos |>
+  ggplot(aes(x = fct_infreq(paredes_exteriores))) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1)) +
+  geom_text(stat = "count", aes(label = after_stat(count)),
+            vjust = -0.5) +
+  labs(title = "Las Paredes Exteriores de los Permisos", 
+       x = "Material de las Paredes Exteriores",
+       y = "Conteo") +
+  scale_y_continuous(limits = c(0, 85))
+
+# Floors
+all_permisos |>
+  ggplot(aes(x = fct_infreq(piso))) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1)) +
+  geom_text(stat = "count", aes(label = after_stat(count)),
+            vjust = -0.5) +
+  labs(title = "Los Pisos de los Permisos", 
+       x = "Material de los Pisos",
+       y = "Conteo") +
+  scale_y_continuous(limits = c(0, 150))
+
+# Roofs
+all_permisos |>
+  ggplot(aes(x = fct_infreq(techo))) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1)) +
+  geom_text(stat = "count", aes(label = after_stat(count)),
+            vjust = -0.5) +
+  labs(title = "Los Techos de los Permisos", 
+       x = "Material de los Techos",
+       y = "Conteo") +
+  scale_y_continuous(limits = c(0, 300))
+
+# aes(fill = destino)  # option to add a third variable to these graphs
+```
+
+### Text Processing
+What words appear the most in `direccion`?
+```{r}
+p <- paste(all_permisos$direccion)
+s <- unlist(strsplit(p,split=" |[[:punct:]]"))
+sort(table(s),decreasing=TRUE)[1:30]
+```
+
+```{r}
+library(tidytext)
+all_permisos %>% select(.,direccion) %>%
+  unnest_tokens(.,bigram,direccion,token="ngrams",n=2) -> all_permisos.new
+sort(table(all_permisos.new$bigram),decreasing=TRUE)[1:50]
+```
+
+
+## Municipalities
+
+### Variable Creation
+```{r}
+# municipality variable creation
+# word processing with address
+
+all_permisos %>% filter(.,str_detect(direccion,"LOS LLANOS")) %>% nrow(.)
+all_permisos %>% filter(.,str_detect(direccion,"SAN LUIS")) %>% nrow(.)
+all_permisos %>% filter(.,str_detect(direccion,"MONTEVERDE")&
+                          !str_detect(direccion,"SAN LUIS")) %>% nrow(.)
+all_permisos %>% filter(.,str_detect(direccion,"SANTA ELENA")) %>% nrow(.)
+all_permisos %>% filter(.,str_detect(direccion,"BARRIO LA VIRGEN")) %>% nrow(.)
+all_permisos %>% filter(.,str_detect(direccion,"CERRO PLANO")) %>% nrow(.)
+all_permisos %>% filter(.,str_detect(direccion,"VALLE BONITO")) %>% nrow(.)
+all_permisos %>% filter(.,str_detect(direccion,"LA LINDORA")) %>% nrow(.)
+all_permisos %>% filter(.,str_detect(direccion,"SAN LUIS")) %>% nrow(.)
+
+muni <- rep(NA,nrow(all_permisos))
+muni[all_permisos %>% with(.,which(str_detect(direccion,"LOS LLANOS")))] <- 
+  "LOS LLANOS"
+muni[all_permisos %>% with(.,which(str_detect(direccion,"SAN LUIS")))] <- 
+  "SAN LUIS"
+muni[all_permisos %>% with(.,which(str_detect(direccion,"MONTEVERDE")&
+                                     !str_detect(direccion,"SAN LUIS")))] <- 
+  "MONTEVERDE"
+muni[all_permisos %>% with(.,which(str_detect(direccion,"SANTA ELENA")))] <- 
+  "SANTA ELENA"
+muni[all_permisos %>% with(.,which(str_detect(direccion,"BARRIO LA VIRGEN")))] <- 
+  "BARRIO LA VIRGEN"
+muni[all_permisos %>% with(.,which(str_detect(direccion,"CERRO PLANO")))] <- 
+  "CERRO PLANO"
+muni[all_permisos %>% with(.,which(str_detect(direccion,"VALLE BONITO")))] <- 
+  "VALLE BONITO"
+muni[all_permisos %>% with(.,which(str_detect(direccion,"LA LINDORA")))] <- 
+  "LA LINDORA"
+all_permisos <- cbind(all_permisos, muni)
+```
+
+### Municipality EDA
+```{r}
+# Municipality vs. Valuation
+all_permisos %>% ggplot(.,aes(x=muni,y=log10(valor_de_la_obra))) + 
+  geom_boxplot(fill="mediumorchid") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  xlab(NULL) + ylab("Log(Valuation)")
+
+# Floor Material by Municipality
+ggplot(all_permisos,aes(fill=muni,x=fct_infreq(piso))) + 
+  geom_bar(position="fill") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+```{r}
+# Number of Floors by Municipality (proportional)
+ggplot(all_permisos,aes(fill=muni,x=numero_pisos)) + geom_bar(position="fill") 
+
+# Number of Bedrooms by Municipality (stacked)
+ggplot(all_permisos,aes(fill=muni,x=numero_dormitorios)) +
+  geom_bar(position="stack")
+```
+
+### Destino vs. Municipality Bar Charts
+```{r}
+# Permit Types by Municipality (proportional)
+ggplot(all_permisos, aes(fill=muni,x=fct_infreq(destino))) + 
+  geom_bar(position="fill") +
+  theme(axis.text.x = element_text(angle = 50, hjust=1)) +
+  labs(x = "Destino / Use", y = "Proporcion / Proportion", 
+       fill = "Municipio / Municipality",
+       title = "Los Destinos de los Permisos por Municipio /
+                Permit Uses by Municipality")
+
+# Municipality by Permit Types (stacked)
+ggplot(all_permisos, aes(fill=destino,x=fct_infreq(muni))) + 
+  geom_bar(position="stack") +
+  theme(axis.text.x = element_text(angle = 50, hjust=1)) +
+  labs(x = "Municipio", y = "Conteo", fill = "Destino")
+```
+
+
+## Spatial Distribution of Permits 
+
+### Coordinate Conversion
+```{r}
+library(sf)  # necessary for the functions used to transform the coordinates
+
+# relabeling an NA row of coordinates to (0,0) to represent NA
+all_permisos$Coordenadas.X[all_permisos$n_permiso == 1749] <- 0
+all_permisos$Coordenadas.Y[all_permisos$n_permiso == 1749] <- 0
+
+# converting UTM (Universal Transverse Mercator) to latitude/longitude
+# Coordenadas.X is the easting value
+# Coordenadas.Y is the northing value
+
+convert_coords <- function(df, x_col = "x", y_col = "y") {
+  # Projection Name: UTM Zone 16N (WGS84)
+  # note: Costa Rica spans UTM Zones 16N and 17N, but Monteverde is in Zone 16N
+  point_utm <- st_as_sf(df, coords = c(x_col, y_col), crs = 32616)
+  point_wgs84 <- st_transform(point_utm, crs = 4326)
+  coords <- st_coordinates(point_wgs84)
+  
+  # rewriting to dataframe
+  df$new_lon <- coords[, 1] + 3 # the +3 was just the only thing i got to work
+  df$new_lat <- coords[, 2] 
+  
+  return(df)
+}
+
+# applying the function to the dataset
+all_permisos <- convert_coords(all_permisos, "Coordenadas.X", "Coordenadas.Y")
+# checking that it worked
+head(all_permisos$new_lon) # should be in the -84.8 range
+head(all_permisos$new_lat) # should be in the  10.3 range
+
+# filter out the zeros (could also do this before, but i didn't remember to)
+all_permisos_filter <- all_permisos %>% 
+  filter(!new_lon == -88.48874388 & !new_lat == 0)
+```
+
+### Factoring Variables for the Map
+```{r}
+# factoring destino into fewer groups for the map legend to not be cluttered
+all_permisos_filter <- all_permisos_filter %>%
+  mutate(destino_grouped = fct_lump_min(destino, min = 3, # groups w/ < 3
+                                        other_level = "OTROS")) # other
+
+all_permisos_filter %>% group_by(destino_grouped) %>% summarize(n())
+
+# what data was lost in removing the NA coordinates
+all_permisos_filter |>
+  ggplot(aes(x = fct_infreq(destino_grouped))) +
+  geom_bar(fill = "darkgreen") +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1)) +
+  geom_text(stat = "count", aes(label = after_stat(count)),
+            vjust = -0.5) +
+  labs(title = "Los Destinos de los Permisos", x = "Destino", y = "Conteo") +
+  scale_y_continuous(limits = c(0, 310))
+
+# adding a year variable to separate the map as well
+all_permisos_filter$year <- year(all_permisos_filter$fecha_pago)
+all_permisos_filter$year <- factor(all_permisos_filter$year)
+```
+
+### Mapping
+```{r}
+# # with google api map
+# library(ggmap)
+# register_google(key = Sys.getenv("GOOGLE_MAPS_API_KEY", write = TRUE)
+
+# center_lon <- mean(range(all_permisos_filter$new_lon, na.rm = TRUE))
+# center_lat <- mean(range(all_permisos_filter$new_lat, na.rm = TRUE))
+
+# monteverde_map <- get_map(location = c(lon = center_lon, lat = center_lat),
+#                           zoom = 10,
+#                           source = "google",
+#                           maptype = "terrain")
+# 
+# ggmap(monteverde_map) +
+#   geom_point(data = all_permisos_filter, aes(x = new_lon, y = new_lat), 
+#              alpha = 0.5)
+
+# the above code works, but the range of points is too large to fit on the 
+# static google api map, so i switched to the leaflet package below
+
+# interactive leaflet map
+library(leaflet)
+
+# setting the destino point coloring
+pal <- colorFactor(palette = c("#000000", "#009E73", "#0072B2",
+                               "#E69F00", "#CC79A7", "#F0E442"),
+                   domain = all_permisos_filter$destino_grouped)
+
+leaflet(data = all_permisos_filter) %>%
+  addTiles() %>%
+  addCircleMarkers(~new_lon, ~new_lat, 
+                   radius = 7,              # points enlarged for presentation
+                   color = ~pal(destino_grouped), # colored by destino
+                   stroke = FALSE,
+                   fillOpacity = 0.5,
+                   group = ~year,           # sectioned by year (toggle)
+                   # when click on point, address appears
+                   popup = ~paste("Direccion: ", direccion,
+                                  "<br>Fecha: ", fecha_pago)) %>% 
+  addLegend("bottomright",
+            pal = pal,
+            values = ~destino_grouped,
+            title = "Destino") %>% 
+  addLayersControl( # adds the overlay that allows to toggle between years
+    overlayGroups = unique(all_permisos_filter$year),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+```
+
+```{r}
+# another map with points colored by year
+
+pal2 <- colorFactor(palette = c("#009E73", "#0072B2","#CC79A7","#F0E442"),
+                    domain = all_permisos_filter$year)
+
+leaflet(data = all_permisos_filter) %>%
+  addTiles() %>%
+  addCircleMarkers(~new_lon, ~new_lat, 
+                   radius = 6, 
+                   color = ~pal2(year),
+                   stroke = FALSE,
+                   fillOpacity = 0.5,
+                   popup = ~paste("Direccion: ", direccion,
+                                  "<br>Fecha: ", fecha_pago)) %>% 
+  addLegend("bottomright",
+            pal = pal2,
+            values = ~year,
+            title = "Ano")
+```
+
+
+## The Rate of Construction
+
+### Number of Permits by Month
+```{r}
+monthly_permits <- all_permisos %>%
+  mutate(month = floor_date(fecha_pago, "month")) %>%
+  group_by(month) %>%
+  summarise(total = n())
+
+ggplot(monthly_permits, aes(x = as.Date(month), y = total)) +
+  geom_line() +
+  geom_smooth(se = TRUE, span = 0.7) +
+  # scale_x_date(date_breaks = "3 months",
+  #              date_labels = "%b %Y") +  # adds months to x-axis
+  labs(title = "Permisos por Mes / Permits by Month",
+       x = "Fecha / Date", y = "Numero de Permisos / Number of Permits") +
+  # theme(axis.text.x = element_text(angle = 50, hjust=1)) +  # if x in months
+  geom_vline(color = "red", linewidth = 1, linetype = "dashed", 
+             xintercept = as.Date("2020-3-6")) +
+  geom_text(label = "Pandemia de\nCOVID-19", x = as.Date("2020-6-15"), y = 19)
+```
+
+### Autocorrelations
+```{r}
+# By day
+daily_permits <- all_permisos %>% 
+  count(fecha_pago) %>% 
+  arrange(fecha_pago)
+
+permit_ts <- ts(daily_permits$n, frequency = 365)
+acf(permit_ts, main = "Autocorrelation of Daily Permits")
+
+# By month
+monthly_permits <- all_permisos %>% 
+  mutate(month = floor_date(fecha_pago, "month")) %>% 
+  count(month) %>% 
+  arrange(month)
+
+permit_ts_mes <- ts(monthly_permits$n, start = c(2019, 08, 01), frequency = 12)
+acf(permit_ts_mes, main = "Autocorrelation of Monthly Permits")
+```
+
+### Time Series Decomposition
+```{r}
+# decomposition
+permit_ts_mes <- ts(monthly_permits$n, start = c(2019, 08, 01), frequency = 12)
+decomp <- stl(permit_ts_mes, s.window = "periodic")
+plot(decomp)
+
+# seasonality strength
+## how much variation in the data is due to the seasonality (closer to 1, better)
+var(decomp$time.series[, "seasonal"]) /
+  var(decomp$time.series[, "seasonal"] + decomp$time.series[, "remainder"])
+
+# trend strength
+## how much variation in the data is due to the overall trend
+var(decomp$time.series[, "trend"]) /
+  var(decomp$time.series[, "trend"] + decomp$time.series[, "remainder"])
+
+# seeing the seasonal effect by month to better understand the tsd
+seasonal <- decomp$time.series[, "seasonal"]
+months <- cycle(permit_ts_mes)
+seasonal_avg <- tapply(seasonal, months, mean)
+seasonal_df <- data.frame(
+  Month = month.name,
+  SeasonalEffect = as.numeric(seasonal_avg)
+)
+
+ggplot(seasonal_df, aes(x = reorder(Month, SeasonalEffect), y = SeasonalEffect)) +
+  geom_col(fill = "steelblue") +
+  coord_flip()
+```
+
+### All Permisos by Month (Regardless of Year)
+```{r}
+all_permisos %>%
+  mutate(month = month(fecha_pago, label = TRUE)) %>%
+  count(month) %>%
+  ggplot(aes(x = month, y = n)) +
+  geom_col(fill = "steelblue") +
+  labs(x = "mes", y = "conteo", title = "Permisos por Mes")
+```
+
+### Heatmap of Monthly Permit Count
+```{r}
+heatmap_data <- all_permisos %>%
+  mutate(year = year(fecha_pago),
+         month = month(fecha_pago, label = TRUE)) %>%
+  group_by(year, month) %>%
+  summarise(count = n(), .groups = "drop")
+
+ggplot(heatmap_data, aes(x = month, y = factor(year), fill = count)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "darkblue", high = "darkorange") +
+  labs(title = "Heatmap de Permisos / Permit Heatmap",
+       x = "Mes / Month", y = "Año / Year") 
+```
+
+### Monthly Permit Count by Municipality 
+Does it differ by municipality? no
+```{r}
+permisos_por_muni <- all_permisos %>%
+  mutate(month = floor_date(fecha_pago, "month")) %>%
+  group_by(month, muni) %>% 
+  summarise(total = n(), .groups = "drop")
+
+permisos_por_muni |>
+  ggplot(aes(x = month, y = total)) +
+  geom_line() +
+  facet_wrap(~muni) +
+  labs(title = "Permisos Mensuales por Municipio",
+       x = "Mes", y = "Conteo")
+
+heatmap_muni <- all_permisos %>%
+  mutate(year = year(fecha_pago),
+         month = month(fecha_pago, label = TRUE)) %>%
+  group_by(muni, year, month) %>%
+  summarise(total = n(), .groups = "drop")
+
+heatmap_muni |>
+  ggplot(aes(x = month, y = factor(year), fill = total)) +
+  geom_tile(color = "white") +
+  facet_wrap(~muni) +
+  scale_fill_gradient(low = "darkblue", high = "darkorange") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+  labs(title = "Heatmap de Permisos por Municipio",
+       x = "Mes", y = "Year") 
+```
+
+### Average Monthly Permit Count by Municipality
+```{r}
+all_permisos %>%
+  group_by(muni) %>%
+  summarise(mean_per_month = n() / 
+              n_distinct(floor_date(fecha_pago, "month")))
+```
+
+### Monthly Permit Count by Type
+```{r}
+permisos_por_destino <- all_permisos %>% 
+  mutate(month = floor_date(fecha_pago, "month")) %>% 
+  group_by(month, destino) %>% 
+  summarise(total = n(), .groups = "drop")
+
+permisos_por_destino |>
+  ggplot(aes(x = month, y = total, fill = destino)) +
+  geom_col() +
+  labs(title = "Permisos Mensuales por Destino",
+       x = "Mes", y = "Conteo", fill = "Destino")
+
+permisos_por_destino |>
+  ggplot(aes(x = month, y = total, color = destino)) +
+  geom_line()
+```
+Number of vacant lots has increased recently, maybe something to note.
+
+### Hypothesis Testing
+```{r}
+agg <- all_permisos %>% 
+  mutate(month = floor_date(fecha_pago, "month")) %>% 
+  count(muni, month)
+
+summary(aov(n~muni, data = agg))
+
+table <- table(all_permisos$muni, all_permisos$destino)
+chisq.test(table)
+```
