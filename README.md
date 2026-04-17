@@ -1,10 +1,10 @@
-# Monteverde Institute Internship Project on Construction Permits
+# Monteverde Institute Project on Construction Permits
 
 ## Presentation
 https://docs.google.com/presentation/d/1Y-3-nKwjy6MHvegyO0mpbgjmRMYCx1WP5VWA1yjIl2k/edit?usp=sharing
 
 ## Interactive Report
-https://rebeccals05.github.io/monteverde-permisos/#Spatial_Distribution_of_Permits
+https://rebeccals05.github.io/monteverde-permisos
 
 # Project Overview
 This project analyzes the rate of construction in the Monteverde Cantón in Costa Rica (2019-2022) to understand how construction activity varies depending on the year, season, area, and type of construction permit filed.
